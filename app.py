@@ -1,6 +1,7 @@
 import base64
 import json
 import time
+import urllib.request
 from pathlib import Path
 
 import av
@@ -13,6 +14,49 @@ from streamlit_webrtc import webrtc_streamer
 APP_DIR = Path(__file__).parent
 MODEL_PATH = APP_DIR / "recycling_model_3class.keras"
 CONFIG_PATH = APP_DIR / "recycling_model_config.json"
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cloudflare_ice_servers(turn_key_id: str, turn_api_token: str):
+    """Generate short-lived Cloudflare TURN credentials on the server."""
+    url = (
+        "https://rtc.live.cloudflare.com/v1/turn/keys/"
+        f"{turn_key_id}/credentials/generate-ice-servers"
+    )
+    request = urllib.request.Request(
+        url,
+        data=b'{"ttl":86400}',
+        headers={
+            "Authorization": f"Bearer {turn_api_token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))["iceServers"]
+
+
+def get_rtc_configuration():
+    """Use TURN in the cloud, with Google STUN as a local-development fallback."""
+    fallback = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    try:
+        turn_key_id = st.secrets["CLOUDFLARE_TURN_KEY_ID"]
+        turn_api_token = st.secrets["CLOUDFLARE_TURN_KEY_API_TOKEN"]
+    except (KeyError, FileNotFoundError):
+        return fallback
+
+    try:
+        return {
+            "iceServers": get_cloudflare_ice_servers(
+                str(turn_key_id), str(turn_api_token)
+            )
+        }
+    except Exception:
+        st.warning(
+            "เชื่อมต่อ TURN server ไม่สำเร็จ กำลังลองเชื่อมต่อกล้องแบบปกติ "
+            "โปรดลองรีเฟรชหน้าเว็บอีกครั้ง"
+        )
+        return fallback
 
 
 @st.cache_resource
@@ -344,9 +388,7 @@ with cam_col:
         key="recycling-camera",
         video_frame_callback=process_frame,
         media_stream_constraints={"video": True, "audio": False},
-        rtc_configuration={
-            "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
-        },
+        rtc_configuration=get_rtc_configuration(),
     )
 
 with bin_col:
