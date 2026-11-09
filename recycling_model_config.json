@@ -1,0 +1,13 @@
+{
+  "class_names": [
+    "non_recyclable",
+    "other",
+    "recyclable"
+  ],
+  "recyclable_threshold": 0.9,
+  "image_size": [
+    224,
+    224
+  ],
+  "preprocessing": "mobilenet_v2.preprocess_input"
+}
