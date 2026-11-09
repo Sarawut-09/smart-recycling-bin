@@ -29,6 +29,7 @@ def get_cloudflare_ice_servers(turn_key_id: str, turn_api_token: str):
         headers={
             "Authorization": f"Bearer {turn_api_token}",
             "Content-Type": "application/json",
+            "User-Agent": "streamlit-webrtc",
         },
         method="POST",
     )
